@@ -2,16 +2,22 @@ import { getDefaultConfig } from "@rainbow-me/rainbowkit"
 import { http } from "wagmi"
 import { mainnet, sepolia, foundry } from "wagmi/chains"
 
-const rpcUrl = import.meta.env.VITE_RPC_URL ?? "http://127.0.0.1:8545"
+const chains = {
+  foundry,
+  sepolia,
+  mainnet,
+} as const
+
+export const activeChain =
+  chains[(import.meta.env.VITE_CHAIN as keyof typeof chains) ?? "foundry"] ??
+  foundry
 
 export const wagmiConfig = getDefaultConfig({
   appName: "Pachatopia",
   projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? "PLACEHOLDER",
-  chains: [foundry, sepolia, mainnet],
+  chains: [activeChain],
   transports: {
-    [foundry.id]: http(rpcUrl),
-    [sepolia.id]: http(),
-    [mainnet.id]: http(),
+    [activeChain.id]: http(activeChain.id === foundry.id ? "http://127.0.0.1:8545" : undefined),
   },
 })
 
