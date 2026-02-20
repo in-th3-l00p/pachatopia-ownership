@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import {
   useAccount,
   usePublicClient,
   useSimulateContract,
-  useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi"
 import { useMutation } from "convex/react"
@@ -17,6 +16,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
 import { api } from "../../convex/_generated/api"
+import type { PublicClient } from "viem"
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   available: "default",
@@ -171,77 +171,55 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
   )
 }
 
-// ── Post-confirmation sync ──
-// After the user's tx confirms, reads updated tile state from chain and
-// pushes it to Convex (so all clients see the change reactively).
+// ── Post-confirmation sync (non-hook helper) ─────────────────────────────────
+// Waits for a tx receipt using the viem promise API (no React polling),
+// then reads the updated tile state once and pushes it to Convex.
 
-function useConfirmAndSync(
-  txHash: `0x${string}` | undefined,
-  tokenId: number | null | undefined,
+async function confirmAndSync(
+  publicClient: PublicClient,
+  syncChainState: (args: { tokenId: number; owner: string; listed: boolean; priceWei: string }) => Promise<unknown>,
+  removeByTokenId: (args: { tokenId: number }) => Promise<unknown>,
+  tokenId: number,
+  txHash: `0x${string}`,
 ) {
-  const publicClient = usePublicClient()
-  const syncChainState = useMutation(api.terras.syncChainState)
-  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
-
-  const { isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-    query: { enabled: !!txHash },
-  })
-
-  // Track which hash we've already synced to avoid double-firing
-  const syncedHashRef = useRef<string | undefined>(undefined)
-
-  useEffect(() => {
-    if (!isSuccess || !txHash || tokenId == null) return
-    if (syncedHashRef.current === txHash) return
-    syncedHashRef.current = txHash
-
-    async function sync() {
-      if (!publicClient) return
-      try {
-        const [terra, owner] = await Promise.all([
-          publicClient.readContract({
-            address: PACHA_TERRA_ADDRESS,
-            abi: PACHA_TERRA_ABI,
-            functionName: "getTerra",
-            args: [BigInt(tokenId!)],
-          }),
-          publicClient.readContract({
-            address: PACHA_TERRA_ADDRESS,
-            abi: PACHA_TERRA_ABI,
-            functionName: "ownerOf",
-            args: [BigInt(tokenId!)],
-          }),
-        ])
-        const t = terra as unknown as { listed: boolean; price: bigint }
-        await syncChainState({
-          tokenId: tokenId!,
-          owner: (owner as string).toLowerCase(),
-          listed: t.listed,
-          priceWei: t.price.toString(),
-        })
-      } catch (err) {
-        console.error("useConfirmAndSync failed for tokenId", tokenId, err)
-      } finally {
-        // Always clear the pending tx, even if the chain read failed
-        try {
-          await removeByTokenId({ tokenId: tokenId! })
-        } catch {}
-      }
-    }
-
-    sync()
-  }, [isSuccess, txHash, tokenId, publicClient, syncChainState, removeByTokenId])
+  try {
+    await publicClient.waitForTransactionReceipt({ hash: txHash })
+    const [terra, owner] = await Promise.all([
+      publicClient.readContract({
+        address: PACHA_TERRA_ADDRESS,
+        abi: PACHA_TERRA_ABI,
+        functionName: "getTerra",
+        args: [BigInt(tokenId)],
+      }),
+      publicClient.readContract({
+        address: PACHA_TERRA_ADDRESS,
+        abi: PACHA_TERRA_ABI,
+        functionName: "ownerOf",
+        args: [BigInt(tokenId)],
+      }),
+    ])
+    const t = terra as unknown as { listed: boolean; price: bigint }
+    await syncChainState({
+      tokenId,
+      owner: (owner as string).toLowerCase(),
+      listed: t.listed,
+      priceWei: t.price.toString(),
+    })
+  } catch (err) {
+    console.error("confirmAndSync failed for tokenId", tokenId, err)
+  } finally {
+    try { await removeByTokenId({ tokenId }) } catch {}
+  }
 }
 
 // ── Buy action ──
 
 function BuyAction({ tile }: { tile: Tile }) {
   const { address } = useAccount()
+  const publicClient = usePublicClient()
   const addPending = useMutation(api.pendingTxs.add)
-  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
-
-  useConfirmAndSync(pendingHash, tile.tokenId)
+  const syncChainState = useMutation(api.terras.syncChainState)
+  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
 
   const canSimulate = tile.tokenId != null && tile.price != null && tile.price > 0n
 
@@ -257,11 +235,10 @@ function BuyAction({ tile }: { tile: Tile }) {
   const { writeContractAsync, isPending } = useWriteContract()
 
   async function handleBuy() {
-    if (!simulation || tile.tokenId == null || !address) return
+    if (!simulation || tile.tokenId == null || !address || !publicClient) return
 
     try {
       const txHash = await writeContractAsync(simulation.request)
-      setPendingHash(txHash)
       await addPending({
         tokenId: tile.tokenId,
         txHash,
@@ -269,6 +246,8 @@ function BuyAction({ tile }: { tile: Tile }) {
         userAddress: address,
       })
       toast.success("Purchase submitted — waiting for confirmation")
+      // Fire-and-forget: waits for receipt internally, no React polling
+      confirmAndSync(publicClient, syncChainState, removeByTokenId, tile.tokenId, txHash)
     } catch (err) {
       toast.error(
         `Purchase failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -340,16 +319,16 @@ function ListAction({
   onAction?: () => void
 }) {
   const { address } = useAccount()
+  const publicClient = usePublicClient()
   const addPending = useMutation(api.pendingTxs.add)
+  const syncChainState = useMutation(api.terras.syncChainState)
+  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
   const [priceEth, setPriceEth] = useState("")
-  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
   const { writeContractAsync, isPending } = useWriteContract()
-
-  useConfirmAndSync(pendingHash, tile.tokenId)
 
   async function handleList(e: React.FormEvent) {
     e.preventDefault()
-    if (tile.tokenId == null || !priceEth || !address) return
+    if (tile.tokenId == null || !priceEth || !address || !publicClient) return
 
     let priceWei: bigint
     try {
@@ -371,11 +350,11 @@ function ListAction({
         functionName: "list",
         args: [BigInt(tile.tokenId), priceWei],
       })
-      setPendingHash(txHash)
       await addPending({ tokenId: tile.tokenId, txHash, action: "list", userAddress: address })
       toast.success("Listing submitted — waiting for confirmation")
       setPriceEth("")
       onAction?.()
+      confirmAndSync(publicClient, syncChainState, removeByTokenId, tile.tokenId, txHash)
     } catch (err) {
       toast.error(
         `Listing failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -418,14 +397,14 @@ function DelistAction({
   onAction?: () => void
 }) {
   const { address } = useAccount()
+  const publicClient = usePublicClient()
   const addPending = useMutation(api.pendingTxs.add)
-  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
+  const syncChainState = useMutation(api.terras.syncChainState)
+  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
   const { writeContractAsync, isPending } = useWriteContract()
 
-  useConfirmAndSync(pendingHash, tile.tokenId)
-
   async function handleDelist() {
-    if (tile.tokenId == null || !address) return
+    if (tile.tokenId == null || !address || !publicClient) return
 
     try {
       const txHash = await writeContractAsync({
@@ -434,10 +413,10 @@ function DelistAction({
         functionName: "delist",
         args: [BigInt(tile.tokenId)],
       })
-      setPendingHash(txHash)
       await addPending({ tokenId: tile.tokenId, txHash, action: "delist", userAddress: address })
       toast.success("Delist submitted — waiting for confirmation")
       onAction?.()
+      confirmAndSync(publicClient, syncChainState, removeByTokenId, tile.tokenId, txHash)
     } catch (err) {
       toast.error(
         `Delisting failed: ${err instanceof Error ? err.message : "Unknown error"}`,
