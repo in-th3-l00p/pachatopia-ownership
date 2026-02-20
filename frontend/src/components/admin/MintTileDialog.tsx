@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useWriteContract } from "wagmi"
 import {
   Dialog,
   DialogContent,
@@ -11,18 +12,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
 
 interface MintTileDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onSuccess?: () => void
 }
 
-export function MintTileDialog({ open, onOpenChange }: MintTileDialogProps) {
+export function MintTileDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: MintTileDialogProps) {
   const [lat, setLat] = useState("")
   const [lng, setLng] = useState("")
   const [widthCm, setWidthCm] = useState("")
   const [heightCm, setHeightCm] = useState("")
-  const [isPending, setIsPending] = useState(false)
+
+  const { writeContractAsync, isPending } = useWriteContract()
 
   function resetForm() {
     setLat("")
@@ -39,31 +47,28 @@ export function MintTileDialog({ open, onOpenChange }: MintTileDialogProps) {
       return
     }
 
-    setIsPending(true)
+    try {
+      await writeContractAsync({
+        address: PACHA_TERRA_ADDRESS,
+        abi: PACHA_TERRA_ABI,
+        functionName: "mint",
+        args: [
+          Math.round(parseFloat(lat) * 1e6),
+          Math.round(parseFloat(lng) * 1e6),
+          parseInt(widthCm),
+          parseInt(heightCm),
+        ],
+      })
 
-    // Mock mint — replace with actual wagmi writeContract call:
-    //
-    // import { writeContract } from "wagmi/actions"
-    // import { wagmiConfig } from "@/lib/wagmi"
-    //
-    // await writeContract(wagmiConfig, {
-    //   address: PACHA_TERRA_ADDRESS,
-    //   abi: pachaTerraAbi,
-    //   functionName: "mint",
-    //   args: [
-    //     Math.round(parseFloat(lat) * 1e6),  // int32 lat (microdegrees)
-    //     Math.round(parseFloat(lng) * 1e6),  // int32 lng (microdegrees)
-    //     parseInt(widthCm),                   // uint32 widthCm
-    //     parseInt(heightCm),                  // uint32 heightCm
-    //   ],
-    // })
-
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    setIsPending(false)
-    toast.success("Tile minted successfully (mock)")
-    resetForm()
-    onOpenChange(false)
+      toast.success("Tile minted successfully!")
+      resetForm()
+      onOpenChange(false)
+      onSuccess?.()
+    } catch (err) {
+      toast.error(
+        `Failed to mint tile: ${err instanceof Error ? err.message : "Unknown error"}`,
+      )
+    }
   }
 
   return (

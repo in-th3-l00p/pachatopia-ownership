@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useState } from "react"
-import { tiles } from "@/data/tiles"
+import { useTerras } from "@/hooks/useTerras"
 import { TileTable } from "@/components/admin/TileTable"
 import { MintTileDialog } from "@/components/admin/MintTileDialog"
 import { Button } from "@/components/ui/button"
@@ -11,9 +11,7 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPage() {
   const [mintOpen, setMintOpen] = useState(false)
-
-  // Mock: use demo tiles that have a tokenId (i.e. "owned" ones)
-  const mintedTiles = tiles.filter((t) => t.tokenId != null)
+  const { tiles, isLoading, refetch } = useTerras()
 
   return (
     <div className="flex flex-col h-full">
@@ -21,19 +19,29 @@ function AdminPage() {
         <div>
           <h1 className="font-heading text-xl font-bold">Admin Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Manage minted terra parcels
+            {isLoading
+              ? "Loading terra parcels..."
+              : `${tiles.length} minted terra parcels`}
           </p>
         </div>
-        <Button onClick={() => setMintOpen(true)}>
-          Mint Tile
-        </Button>
+        <Button onClick={() => setMintOpen(true)}>Mint Tile</Button>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
-        <TileTable tiles={mintedTiles} />
+        {isLoading ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Loading tiles from contract...
+          </div>
+        ) : (
+          <TileTable tiles={tiles} />
+        )}
       </div>
 
-      <MintTileDialog open={mintOpen} onOpenChange={setMintOpen} />
+      <MintTileDialog
+        open={mintOpen}
+        onOpenChange={setMintOpen}
+        onSuccess={refetch}
+      />
     </div>
   )
 }

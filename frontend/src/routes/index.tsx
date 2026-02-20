@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
-import { tiles } from "@/data/tiles"
 import type { Tile } from "@/data/tiles"
+import { useTerras } from "@/hooks/useTerras"
 import { TileMap } from "@/components/TileMap"
 import { TileProperties } from "@/components/TileProperties"
 import { MapLegend } from "@/components/MapLegend"
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/")({
 function MapPage() {
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { tiles, isLoading } = useTerras()
 
   function handleSelectTile(tile: Tile) {
     setSelectedTile(tile)
@@ -42,8 +43,15 @@ function MapPage() {
           <MapLegend />
         </div>
 
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-background/90 backdrop-blur rounded-lg px-3 py-2 shadow-md border text-xs text-muted-foreground">
+            Loading tiles from contract...
+          </div>
+        )}
+
         {/* Tap hint on mobile */}
-        {!selectedTile && (
+        {!selectedTile && !isLoading && tiles.length > 0 && (
           <div className="absolute bottom-3 right-3 z-[1000] lg:hidden bg-background/90 backdrop-blur rounded-lg px-3 py-2 shadow-md border text-xs text-muted-foreground">
             Tap a parcel to view details
           </div>
@@ -53,7 +61,9 @@ function MapPage() {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-[360px] flex-col border-l bg-background">
         <div className="p-4 border-b">
-          <h2 className="font-heading text-lg font-semibold">Parcel Details</h2>
+          <h2 className="font-heading text-lg font-semibold">
+            Parcel Details
+          </h2>
           <p className="text-muted-foreground text-sm">
             Select a parcel on the map
           </p>
@@ -70,7 +80,7 @@ function MapPage() {
           )}
         </ScrollArea>
         <div className="p-4 border-t">
-          <TileStats />
+          <TileStats tiles={tiles} />
         </div>
       </aside>
 
@@ -113,7 +123,7 @@ function EmptyState() {
   )
 }
 
-function TileStats() {
+function TileStats({ tiles }: { tiles: Tile[] }) {
   const available = tiles.filter((t) => t.status === "available").length
   const owned = tiles.filter((t) => t.status === "owned").length
   const reserved = tiles.filter((t) => t.status === "reserved").length
@@ -136,7 +146,9 @@ function TileStats() {
       <div className="rounded-md bg-muted p-2">
         <p className="text-muted-foreground">Total Area</p>
         <p className="font-semibold text-sm">
-          {(totalArea / 1000).toFixed(1)}k m²
+          {totalArea > 1000
+            ? `${(totalArea / 1000).toFixed(1)}k m²`
+            : `${totalArea} m²`}
         </p>
       </div>
     </div>
