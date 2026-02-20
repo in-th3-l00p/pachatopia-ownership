@@ -118,7 +118,7 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
       {/* Actions */}
       <Separator />
 
-      {tile.status === "available" && !isOwner && (
+      {tile.status === "available" && !isOwner && !!address && (
         <BuyAction tile={tile} onAction={onAction} />
       )}
 
