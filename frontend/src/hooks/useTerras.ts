@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useAccount, useReadContract, useReadContracts } from "wagmi"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
 import { activeChain } from "@/lib/wagmi"
+import { cmToLatDeg, cmToLngDeg } from "@/lib/geo"
 import type { Tile, TileStatus } from "@/data/tiles"
 import type { LatLngTuple } from "leaflet"
 
@@ -16,15 +17,6 @@ const cropSets = [
   ["Fruit Trees", "Herbs"],
   ["Cacao", "Plantain", "Corn"],
 ]
-
-function cmToLatDeg(cm: number): number {
-  return cm / 11_132_000
-}
-
-function cmToLngDeg(cm: number, latDeg: number): number {
-  const latRad = (latDeg * Math.PI) / 180
-  return cm / (11_132_000 * Math.cos(latRad))
-}
 
 function getStatus(
   listed: boolean,

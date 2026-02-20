@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { useState } from "react"
 import { useTerras } from "@/hooks/useTerras"
 import { TileTable } from "@/components/admin/TileTable"
-import { MintTileDialog } from "@/components/admin/MintTileDialog"
+import { MintTileMapView } from "@/components/admin/MintTileMapView"
 import { Button } from "@/components/ui/button"
 
 export const Route = createFileRoute("/admin")({
@@ -10,8 +10,23 @@ export const Route = createFileRoute("/admin")({
 })
 
 function AdminPage() {
-  const [mintOpen, setMintOpen] = useState(false)
+  const [mintMode, setMintMode] = useState(false)
   const { tiles, isLoading, refetch } = useTerras()
+
+  function handleMintSuccess() {
+    refetch()
+    setMintMode(false)
+  }
+
+  if (mintMode) {
+    return (
+      <MintTileMapView
+        tiles={tiles}
+        onCancel={() => setMintMode(false)}
+        onSuccess={handleMintSuccess}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -24,7 +39,7 @@ function AdminPage() {
               : `${tiles.length} minted terra parcels`}
           </p>
         </div>
-        <Button onClick={() => setMintOpen(true)}>Mint Tile</Button>
+        <Button onClick={() => setMintMode(true)}>Mint Tile</Button>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -36,12 +51,6 @@ function AdminPage() {
           <TileTable tiles={tiles} />
         )}
       </div>
-
-      <MintTileDialog
-        open={mintOpen}
-        onOpenChange={setMintOpen}
-        onSuccess={refetch}
-      />
     </div>
   )
 }
