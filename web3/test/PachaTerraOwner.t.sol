@@ -26,22 +26,27 @@ contract PachaTerraOwnerTest is PachaTerraTestBase {
         terra.list(id, 1 ether);
     }
 
-    function test_list_revertsIfPriceNotHigher() public {
+    function test_list_revertsIfPriceIsZero() public {
         uint256 id = terra.mint(10, 20, 100, 200);
-        terra.list(id, 1 ether);
-        terra.delist(id);
 
-        vm.expectRevert("Price can only increase");
-        terra.list(id, 1 ether);
+        vm.expectRevert("Price must be > 0");
+        terra.list(id, 0);
     }
 
-    function test_list_priceFloorAfterDelist() public {
+    function test_list_canRelistAtSameOrLowerPrice() public {
         uint256 id = terra.mint(10, 20, 100, 200);
         terra.list(id, 1 ether);
         terra.delist(id);
 
-        terra.list(id, 2 ether);
-        assertEq(terra.getTerra(id).price, 2 ether);
+        // can relist at same price
+        terra.list(id, 1 ether);
+        assertEq(terra.getTerra(id).price, 1 ether);
+
+        terra.delist(id);
+
+        // can relist at lower price
+        terra.list(id, 0.5 ether);
+        assertEq(terra.getTerra(id).price, 0.5 ether);
     }
 
     function test_delist_success() public {

@@ -10,12 +10,11 @@ import "./TerraBase.sol";
 abstract contract TerraOwner is TerraBase {
 
     /**
-     * @notice list a terra for sale. Price must be higher than
-     *         the current price floor. First listing can be any price > 0.
+     * @notice list a terra for sale at any price > 0.
      */
     function list(uint256 tokenId, uint256 price) external {
         require(ownerOf(tokenId) == msg.sender, "Not owner");
-        require(price > terras[tokenId].price, "Price can only increase");
+        require(price > 0, "Price must be > 0");
 
         terras[tokenId].price = price;
         terras[tokenId].listed = true;
@@ -24,8 +23,7 @@ abstract contract TerraOwner is TerraBase {
     }
 
     /**
-     * @notice remove a terra from sale. Price floor is preserved —
-     *         relisting must be at a higher price than the last one.
+     * @notice remove a terra from sale.
      */
     function delist(uint256 tokenId) external {
         require(ownerOf(tokenId) == msg.sender, "Not owner");
