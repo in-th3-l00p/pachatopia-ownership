@@ -1,14 +1,10 @@
-import { http, createConfig } from "wagmi"
+import { getDefaultConfig } from "@rainbow-me/rainbowkit"
 import { mainnet, sepolia } from "wagmi/chains"
-import { injected } from "wagmi/connectors"
 
-export const wagmiConfig = createConfig({
+export const wagmiConfig = getDefaultConfig({
+  appName: "Pachatopia",
+  projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? "PLACEHOLDER",
   chains: [sepolia, mainnet],
-  connectors: [injected()],
-  transports: {
-    [sepolia.id]: http(),
-    [mainnet.id]: http(),
-  },
 })
 
 declare module "wagmi" {
