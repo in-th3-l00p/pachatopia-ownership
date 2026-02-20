@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useAccount, useWriteContract } from "wagmi"
+import { useAccount, useSimulateContract, useWriteContract } from "wagmi"
 import { useMutation } from "convex/react"
 import { parseEther, formatEther } from "viem"
 import type { Tile } from "@/data/tiles"
@@ -150,19 +150,26 @@ function BuyAction({
   tile: Tile
   onAction?: () => void
 }) {
+  const canSimulate = tile.tokenId != null && tile.price != null && tile.price > 0n
+
+  const { data: simulation, error: simulateError } = useSimulateContract({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    functionName: "buy",
+    args: [BigInt(tile.tokenId ?? 0)],
+    value: tile.price ?? 0n,
+    query: { enabled: canSimulate },
+  })
+
+  console.log(tile.tokenId, tile.price, simulateError);
+
   const { writeContractAsync, isPending } = useWriteContract()
 
   async function handleBuy() {
-    if (tile.tokenId == null || tile.price == null) return
+    if (!simulation) return
 
     try {
-      await writeContractAsync({
-        address: PACHA_TERRA_ADDRESS,
-        abi: PACHA_TERRA_ABI,
-        functionName: "buy",
-        args: [BigInt(tile.tokenId)],
-        value: tile.price,
-      })
+      await writeContractAsync(simulation.request)
       toast.success("Parcel purchased successfully!")
       onAction?.()
     } catch (err) {
@@ -172,12 +179,25 @@ function BuyAction({
     }
   }
 
+  const revertReason = simulateError?.message?.match(/reverted with reason string '([^']+)'/)?.[1]
+
   return (
-    <Button className="w-full" onClick={handleBuy} disabled={isPending}>
-      {isPending
-        ? "Purchasing..."
-        : `Buy for ${tile.price != null ? formatEther(tile.price) : "?"} ETH`}
-    </Button>
+    <div className="flex flex-col gap-2">
+      <Button
+        className="w-full"
+        onClick={handleBuy}
+        disabled={isPending || !simulation}
+      >
+        {isPending
+          ? "Purchasing..."
+          : `Buy for ${tile.price != null ? formatEther(tile.price) : "?"} ETH`}
+      </Button>
+      {simulateError && (
+        <p className="text-xs text-destructive text-center">
+          {revertReason ?? "Transaction would fail — tile may no longer be available"}
+        </p>
+      )}
+    </div>
   )
 }
 
