@@ -1,6 +1,14 @@
 \documentclass{article}
 
 \usepackage{parskip}
+\usepackage[table]{xcolor}
+\usepackage{longtable}
+
+\definecolor{vertdigital}{HTML}{48995c}
+\definecolor{jaunedigital}{HTML}{ffb13b}
+\definecolor{vertprint}{HTML}{007d0c}
+\definecolor{jauneprint}{HTML}{ffa51f}
+\definecolor{marron}{HTML}{885138}
 
 \title{pachatopia.org whitepapaer}
 \author{Cătălin Tișcă}
@@ -21,6 +29,61 @@ region's unique plant biodiversity.
 \section{technical implementation}
 
 \subsection{design}
+
+The visual identity of Pachatopia is rooted in its tagline \textit{``El Mundo Es Uno Solo''}
+(The World Is One) and its Latin motto \textit{``Sub Patriocinio Fuit --- De Amore Et Gracia''}.
+Founded in 2022, the brand communicates earth stewardship, warmth, and agricultural heritage
+through a deliberate palette, typographic system, and logo framework.
+
+\subsubsection{color palette}
+
+Two palette variants exist depending on medium. A shared brown bridges both contexts.
+
+\begin{longtable}{l l l l}
+\textbf{Context} & \textbf{Color} & \textbf{Hex} & \textbf{Swatch} \\
+\hline
+Digital / web / social & Vert n\textsuperscript{o}1 (primary green) & \texttt{\#48995c} & \colorbox{vertdigital}{\hspace{1.5cm}\strut} \\
+Digital / web / social & Jaune orang\'e n\textsuperscript{o}1 (primary orange-yellow) & \texttt{\#ffb13b} & \colorbox{jaunedigital}{\hspace{1.5cm}\strut} \\
+\hline
+Print / labels / invoices & Vert n\textsuperscript{o}2 (darker green) & \texttt{\#007d0c} & \colorbox{vertprint}{\hspace{1.5cm}\strut} \\
+Print / labels / invoices & Jaune orang\'e n\textsuperscript{o}2 (deeper orange-yellow) & \texttt{\#ffa51f} & \colorbox{jauneprint}{\hspace{1.5cm}\strut} \\
+\hline
+Shared (all contexts) & Marron (brown) & \texttt{\#885138} & \colorbox{marron}{\hspace{1.5cm}\strut} \\
+\end{longtable}
+
+\subsubsection{typography}
+
+\begin{itemize}
+    \item \textbf{Lora} --- logo wordmark
+    \item \textbf{Fraunces} --- titles and headings
+    \item \textbf{Hatton} --- body text
+\end{itemize}
+
+\subsubsection{logo}
+
+The logo is an oval badge containing a coffee bean (orange-yellow) above two leaves, with sun
+rays at the top and rolling hills/fields at the bottom. \textit{``El Mundo Es Uno Solo''} arcs
+above the emblem; \textit{``ESTD''} appears on the left and \textit{``2022''} on the right.
+\textit{``. PACHATOPIA .''} is set below in caps.
+
+Three logo variants are defined for different use cases:
+
+\begin{itemize}
+    \item \textbf{Digital / media} --- white linework on a green background (\texttt{\#48995c})
+    \item \textbf{Invoices / admin docs} --- dark green linework on a white or light background
+    \item \textbf{Coffee labels} --- brown linework (\texttt{\#885138}) on kraft or cream paper
+\end{itemize}
+
+\subsubsection{product branding (coffee)}
+
+Coffee packaging carries \textit{``. PACHATOPIA . COFFEE --- Colombia''} beneath the logo.
+Key product details:
+
+\begin{itemize}
+    \item \textbf{Origin:} Antioquia, Colombia, 1\,400\,m altitude
+    \item \textbf{Variety:} Arabica
+    \item \textbf{Roast levels:} three levels, each indicated with flame icons
+\end{itemize}
 
 \subsection{web2 details}
 Pretty much the frontend and the backend concerns of the app. A backend is still required, as it is too
