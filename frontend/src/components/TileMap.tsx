@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css"
 
 const STATUS_COLORS: Record<string, { fill: string; stroke: string }> = {
   available: { fill: "#48995c", stroke: "#3a7a4a" },
-  sponsored: { fill: "#ffb13b", stroke: "#e09520" },
+  owned: { fill: "#ffb13b", stroke: "#e09520" },
   reserved: { fill: "#885138", stroke: "#6b3f2b" },
 }
 

@@ -5,7 +5,7 @@ interface LegendItem {
 
 const items: LegendItem[] = [
   { color: "#48995c", label: "Available" },
-  { color: "#ffb13b", label: "Sponsored" },
+  { color: "#ffb13b", label: "Owned" },
   { color: "#885138", label: "Reserved" },
 ]
 

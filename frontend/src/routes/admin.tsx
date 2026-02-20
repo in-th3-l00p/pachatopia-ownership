@@ -12,7 +12,7 @@ export const Route = createFileRoute("/admin")({
 function AdminPage() {
   const [mintOpen, setMintOpen] = useState(false)
 
-  // Mock: use demo tiles that have a tokenId (i.e. "sponsored" ones)
+  // Mock: use demo tiles that have a tokenId (i.e. "owned" ones)
   const mintedTiles = tiles.filter((t) => t.tokenId != null)
 
   return (

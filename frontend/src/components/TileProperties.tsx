@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator"
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   available: "default",
-  sponsored: "secondary",
+  owned: "secondary",
   reserved: "outline",
 }
 
@@ -64,12 +64,12 @@ export function TileProperties({ tile }: TilePropertiesProps) {
         </div>
       </div>
 
-      {tile.sponsor && (
+      {tile.owner && (
         <>
           <Separator />
           <div>
-            <p className="text-muted-foreground text-sm">Sponsor</p>
-            <p className="font-mono text-sm mt-0.5 break-all">{tile.sponsor}</p>
+            <p className="text-muted-foreground text-sm">Owner</p>
+            <p className="font-mono text-sm mt-0.5 break-all">{tile.owner}</p>
           </div>
         </>
       )}
@@ -77,7 +77,7 @@ export function TileProperties({ tile }: TilePropertiesProps) {
       {tile.status === "available" && (
         <>
           <Separator />
-          <Button className="w-full">Sponsor this Parcel</Button>
+          <Button className="w-full">Own this Parcel</Button>
         </>
       )}
     </div>

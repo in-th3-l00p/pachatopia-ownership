@@ -11,7 +11,7 @@ import {
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   available: "default",
-  sponsored: "secondary",
+  owned: "secondary",
   reserved: "outline",
 }
 

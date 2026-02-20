@@ -107,7 +107,7 @@ function EmptyState() {
       </CardHeader>
       <CardContent className="text-center text-xs text-muted-foreground">
         Click on a highlighted parcel on the map to see its details, terrain
-        type, crops, and sponsorship status.
+        type, crops, and ownership status.
       </CardContent>
     </Card>
   )
@@ -115,7 +115,7 @@ function EmptyState() {
 
 function TileStats() {
   const available = tiles.filter((t) => t.status === "available").length
-  const sponsored = tiles.filter((t) => t.status === "sponsored").length
+  const owned = tiles.filter((t) => t.status === "owned").length
   const reserved = tiles.filter((t) => t.status === "reserved").length
   const totalArea = tiles.reduce((s, t) => s + t.area, 0)
 
@@ -126,8 +126,8 @@ function TileStats() {
         <p className="font-semibold text-sm">{available}</p>
       </div>
       <div className="rounded-md bg-muted p-2">
-        <p className="text-muted-foreground">Sponsored</p>
-        <p className="font-semibold text-sm">{sponsored}</p>
+        <p className="text-muted-foreground">Owned</p>
+        <p className="font-semibold text-sm">{owned}</p>
       </div>
       <div className="rounded-md bg-muted p-2">
         <p className="text-muted-foreground">Reserved</p>

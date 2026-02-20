@@ -1,6 +1,6 @@
 import type { LatLngTuple } from "leaflet"
 
-export type TileStatus = "available" | "sponsored" | "reserved"
+export type TileStatus = "available" | "owned" | "reserved"
 
 export interface Tile {
   id: string
@@ -11,7 +11,7 @@ export interface Tile {
   status: TileStatus
   terrain: string
   crops: string[]
-  sponsor?: string
+  owner?: string
   tokenId?: number
 }
 
@@ -54,7 +54,7 @@ export const tiles: Tile[] = Array.from({ length: 24 }, (_, i) => {
   const row = Math.floor(i / 6)
   const col = i % 6
   const coords = rect(row, col)
-  const status: TileStatus = i < 8 ? "sponsored" : i < 16 ? "available" : "reserved"
+  const status: TileStatus = i < 8 ? "owned" : i < 16 ? "available" : "reserved"
 
   return {
     id: `tile-${String(i + 1).padStart(3, "0")}`,
@@ -65,8 +65,8 @@ export const tiles: Tile[] = Array.from({ length: 24 }, (_, i) => {
     status,
     terrain: terrains[i % terrains.length],
     crops: cropSets[i % cropSets.length],
-    sponsor: status === "sponsored" ? `0x${Math.random().toString(16).slice(2, 10)}...` : undefined,
-    tokenId: status === "sponsored" ? 1000 + i : undefined,
+    owner: status === "owned" ? `0x${Math.random().toString(16).slice(2, 10)}...` : undefined,
+    tokenId: status === "owned" ? 1000 + i : undefined,
   }
 })
 
