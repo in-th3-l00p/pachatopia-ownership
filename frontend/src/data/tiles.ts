@@ -1,6 +1,6 @@
 import type { LatLngTuple } from "leaflet"
 
-export type TileStatus = "available" | "owned" | "reserved" | "pending_buy"
+export type TileStatus = "available" | "owned" | "reserved" | "pending_buy" | "pending_list" | "pending_delist"
 
 export interface Tile {
   id: string

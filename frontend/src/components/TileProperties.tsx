@@ -17,6 +17,8 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   owned: "secondary",
   reserved: "outline",
   pending_buy: "outline",
+  pending_list: "outline",
+  pending_delist: "outline",
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -24,6 +26,8 @@ const STATUS_LABEL: Record<string, string> = {
   owned: "owned",
   reserved: "reserved",
   pending_buy: "pending purchase",
+  pending_list: "pending listing",
+  pending_delist: "pending delist",
 }
 
 const TERRAIN_OPTIONS = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
@@ -138,8 +142,16 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
         <ListAction tile={tile} onAction={onAction} />
       )}
 
+      {isOwner && tile.status === "pending_list" && (
+        <PendingAction label="Listing pending..." note="Transaction confirming on-chain" />
+      )}
+
       {isOwner && tile.status === "available" && (
         <DelistAction tile={tile} onAction={onAction} />
+      )}
+
+      {isOwner && tile.status === "pending_delist" && (
+        <PendingAction label="Delist pending..." note="Transaction confirming on-chain" />
       )}
 
       {isOwner && <EditMetadataAction tile={tile} />}
@@ -230,6 +242,21 @@ function PendingBuyAction({ tile }: { tile: Tile }) {
   )
 }
 
+// ── Generic pending action ──
+
+function PendingAction({ label, note }: { label: string; note?: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Button className="w-full" variant="outline" disabled>
+        {label}
+      </Button>
+      {note && (
+        <p className="text-xs text-muted-foreground text-center">{note}</p>
+      )}
+    </div>
+  )
+}
+
 // ── List action (set price & list for sale) ──
 
 function ListAction({
@@ -239,12 +266,14 @@ function ListAction({
   tile: Tile
   onAction?: () => void
 }) {
+  const { address } = useAccount()
+  const addPending = useMutation(api.pendingTxs.add)
   const [priceEth, setPriceEth] = useState("")
   const { writeContractAsync, isPending } = useWriteContract()
 
   async function handleList(e: React.FormEvent) {
     e.preventDefault()
-    if (tile.tokenId == null || !priceEth) return
+    if (tile.tokenId == null || !priceEth || !address) return
 
     let priceWei: bigint
     try {
@@ -260,13 +289,14 @@ function ListAction({
     }
 
     try {
-      await writeContractAsync({
+      const txHash = await writeContractAsync({
         address: PACHA_TERRA_ADDRESS,
         abi: PACHA_TERRA_ABI,
         functionName: "list",
         args: [BigInt(tile.tokenId), priceWei],
       })
-      toast.success("Parcel listed for sale!")
+      await addPending({ tokenId: tile.tokenId, txHash, action: "list", userAddress: address })
+      toast.success("Listing submitted — waiting for confirmation")
       setPriceEth("")
       onAction?.()
     } catch (err) {
@@ -310,19 +340,22 @@ function DelistAction({
   tile: Tile
   onAction?: () => void
 }) {
+  const { address } = useAccount()
+  const addPending = useMutation(api.pendingTxs.add)
   const { writeContractAsync, isPending } = useWriteContract()
 
   async function handleDelist() {
-    if (tile.tokenId == null) return
+    if (tile.tokenId == null || !address) return
 
     try {
-      await writeContractAsync({
+      const txHash = await writeContractAsync({
         address: PACHA_TERRA_ADDRESS,
         abi: PACHA_TERRA_ABI,
         functionName: "delist",
         args: [BigInt(tile.tokenId)],
       })
-      toast.success("Parcel removed from sale")
+      await addPending({ tokenId: tile.tokenId, txHash, action: "delist", userAddress: address })
+      toast.success("Delist submitted — waiting for confirmation")
       onAction?.()
     } catch (err) {
       toast.error(

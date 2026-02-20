@@ -55,15 +55,15 @@ export function useTerras() {
     return map
   }, [convexTerras])
 
-  // Set of tokenIds that have a pending buy tx
-  const pendingBuyTokenIds = useMemo(() => {
-    const set = new Set<number>()
+  // Map of tokenId → pending action
+  const pendingByTokenId = useMemo(() => {
+    const map = new Map<number, "buy" | "list" | "delist">()
     if (pendingTxs) {
       for (const tx of pendingTxs) {
-        if (tx.action === "buy") set.add(tx.tokenId)
+        map.set(tx.tokenId, tx.action)
       }
     }
-    return set
+    return map
   }, [pendingTxs])
 
   const {
@@ -126,11 +126,21 @@ export function useTerras() {
     refetchBatchRef.current()
   }, [])
 
-  const onListed = useCallback(() => {
+  const onListed = useCallback((logs: { args: { tokenId?: bigint } }[]) => {
+    for (const log of logs) {
+      if (log.args.tokenId != null) {
+        removeByTokenIdRef.current({ tokenId: Number(log.args.tokenId) })
+      }
+    }
     refetchBatchRef.current()
   }, [])
 
-  const onDelisted = useCallback(() => {
+  const onDelisted = useCallback((logs: { args: { tokenId?: bigint } }[]) => {
+    for (const log of logs) {
+      if (log.args.tokenId != null) {
+        removeByTokenIdRef.current({ tokenId: Number(log.args.tokenId) })
+      }
+    }
     refetchBatchRef.current()
   }, [])
 
@@ -217,11 +227,15 @@ export function useTerras() {
       const meta = metaByTokenId.get(i)
 
       const baseStatus = getStatus(listed, owner, connectedAddress)
-      // Override with pending_buy if there's an in-flight purchase for this tile
-      const status: TileStatus =
-        baseStatus === "available" && pendingBuyTokenIds.has(i)
-          ? "pending_buy"
-          : baseStatus
+      const pending = pendingByTokenId.get(i)
+      let status: TileStatus = baseStatus
+      if (pending === "buy" && baseStatus === "available") {
+        status = "pending_buy"
+      } else if (pending === "list" && (baseStatus === "owned" || baseStatus === "reserved")) {
+        status = "pending_list"
+      } else if (pending === "delist" && baseStatus === "available") {
+        status = "pending_delist"
+      }
 
       result.push({
         id: `terra-${i}`,
@@ -239,7 +253,7 @@ export function useTerras() {
     }
 
     return result
-  }, [batchResults, count, connectedAddress, metaByTokenId, pendingBuyTokenIds]);
+  }, [batchResults, count, connectedAddress, metaByTokenId, pendingByTokenId]);
 
   const isLoading = isLoadingSupply || isLoadingBatch;
 

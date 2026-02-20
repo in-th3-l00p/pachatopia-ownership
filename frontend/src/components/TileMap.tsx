@@ -9,6 +9,8 @@ const STATUS_COLORS: Record<string, { fill: string; stroke: string }> = {
   owned: { fill: "#ffb13b", stroke: "#e09520" },
   reserved: { fill: "#885138", stroke: "#6b3f2b" },
   pending_buy: { fill: "#6b7cf6", stroke: "#4f5cd4" },
+  pending_list: { fill: "#a78bfa", stroke: "#7c5ce8" },
+  pending_delist: { fill: "#fb923c", stroke: "#ea7726" },
 }
 
 function FitToTiles({ tiles }: { tiles: Tile[] }) {
