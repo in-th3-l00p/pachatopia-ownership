@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { createFileRoute } from "@tanstack/react-router"
 import { tiles } from "@/data/tiles"
 import type { Tile } from "@/data/tiles"
 import { TileMap } from "@/components/TileMap"
@@ -13,7 +14,11 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 
-function App() {
+export const Route = createFileRoute("/")({
+  component: MapPage,
+})
+
+function MapPage() {
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -23,8 +28,8 @@ function App() {
   }
 
   return (
-    <div className="h-svh w-full flex flex-col lg:flex-row overflow-hidden">
-      {/* Map — takes full viewport on mobile, flex-1 on desktop */}
+    <div className="h-full w-full flex flex-col lg:flex-row overflow-hidden">
+      {/* Map */}
       <div className="relative flex-1 min-h-0">
         <TileMap
           tiles={tiles}
@@ -32,24 +37,12 @@ function App() {
           onSelectTile={handleSelectTile}
         />
 
-        {/* Top bar overlay */}
-        <div className="absolute top-0 inset-x-0 z-[1000] p-3 flex items-start justify-between pointer-events-none">
-          <div className="pointer-events-auto bg-background/90 backdrop-blur rounded-lg px-4 py-2 shadow-md border">
-            <h1 className="font-heading text-lg font-bold tracking-tight">
-              Pachatopia
-            </h1>
-            <p className="text-muted-foreground text-xs">
-              El Mundo Es Uno Solo
-            </p>
-          </div>
-        </div>
-
         {/* Legend overlay */}
         <div className="absolute bottom-3 left-3 z-[1000] pointer-events-auto">
           <MapLegend />
         </div>
 
-        {/* Tap hint on mobile when nothing selected */}
+        {/* Tap hint on mobile */}
         {!selectedTile && (
           <div className="absolute bottom-3 right-3 z-[1000] lg:hidden bg-background/90 backdrop-blur rounded-lg px-3 py-2 shadow-md border text-xs text-muted-foreground">
             Tap a parcel to view details
@@ -57,7 +50,7 @@ function App() {
         )}
       </div>
 
-      {/* Desktop sidebar — hidden on mobile */}
+      {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-[360px] flex-col border-l bg-background">
         <div className="p-4 border-b">
           <h2 className="font-heading text-lg font-semibold">Parcel Details</h2>
@@ -81,7 +74,7 @@ function App() {
         </div>
       </aside>
 
-      {/* Mobile drawer — hidden on desktop */}
+      {/* Mobile drawer */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent className="lg:hidden max-h-[70vh]">
           <DrawerHeader>
@@ -142,10 +135,10 @@ function TileStats() {
       </div>
       <div className="rounded-md bg-muted p-2">
         <p className="text-muted-foreground">Total Area</p>
-        <p className="font-semibold text-sm">{(totalArea / 1000).toFixed(1)}k m²</p>
+        <p className="font-semibold text-sm">
+          {(totalArea / 1000).toFixed(1)}k m²
+        </p>
       </div>
     </div>
   )
 }
-
-export default App
