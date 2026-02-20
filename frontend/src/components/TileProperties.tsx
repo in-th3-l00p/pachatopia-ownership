@@ -213,9 +213,6 @@ function ListAction({
   const [priceEth, setPriceEth] = useState("")
   const { writeContractAsync, isPending } = useWriteContract()
 
-  const minPrice = tile.price != null && tile.price > 0n ? tile.price : 0n
-  const minPriceEth = minPrice > 0n ? formatEther(minPrice) : undefined
-
   async function handleList(e: React.FormEvent) {
     e.preventDefault()
     if (tile.tokenId == null || !priceEth) return
@@ -230,13 +227,6 @@ function ListAction({
 
     if (priceWei <= 0n) {
       toast.error("Price must be greater than 0")
-      return
-    }
-
-    if (priceWei <= minPrice) {
-      toast.error(
-        `Price must be higher than ${formatEther(minPrice)} ETH`,
-      )
       return
     }
 
@@ -266,15 +256,10 @@ function ListAction({
           type="number"
           step="any"
           min="0"
-          placeholder={minPriceEth ? `Min: >${minPriceEth}` : "0.01"}
+          placeholder="0.01"
           value={priceEth}
           onChange={(e) => setPriceEth(e.target.value)}
         />
-        {minPriceEth && (
-          <p className="text-xs text-muted-foreground">
-            Must be higher than {minPriceEth} ETH (price floor)
-          </p>
-        )}
       </div>
       <Button
         type="submit"
