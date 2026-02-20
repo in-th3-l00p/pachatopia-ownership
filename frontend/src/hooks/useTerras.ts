@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import {
   useAccount,
-  usePublicClient,
   useReadContract,
   useReadContracts,
-  useWatchContractEvent,
 } from "wagmi"
 import { useQuery, useMutation } from "convex/react"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
@@ -42,15 +40,12 @@ function getStatus(
 
 export function useTerras() {
   const { address: connectedAddress } = useAccount()
-  const publicClient = usePublicClient()
   const enabled =
     !!PACHA_TERRA_ADDRESS && PACHA_TERRA_ADDRESS !== ("0x" as `0x${string}`)
 
   // ── Convex reactive data ────────────────────────────────────────────────
   const convexTerras = useQuery(api.terras.list)
   const pendingTxs = useQuery(api.pendingTxs.list)
-  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
-  const syncChainState = useMutation(api.terras.syncChainState)
   const batchSyncChainState = useMutation(api.terras.batchSyncChainState)
 
   // Map of tokenId → full Convex document (includes optional chain state)
@@ -84,7 +79,8 @@ export function useTerras() {
     return map
   }, [pendingTxs])
 
-  // ── Chain reads (source of truth for coordinates + verification) ────────
+  // ── Chain reads (source of truth for coordinates) ────────────────────────
+  // staleTime: Infinity — fetched once on mount, never auto-refetched.
   const {
     data: totalSupply,
     isLoading: isLoadingSupply,
@@ -93,7 +89,7 @@ export function useTerras() {
     address: PACHA_TERRA_ADDRESS,
     abi: PACHA_TERRA_ABI,
     functionName: "totalSupply",
-    query: { enabled },
+    query: { enabled, staleTime: Infinity, refetchOnWindowFocus: false },
   })
 
   const count = totalSupply ? Number(totalSupply) : 0
@@ -124,28 +120,18 @@ export function useTerras() {
     refetch: refetchBatch,
   } = useReadContracts({
     contracts: batchCalls,
-    query: { enabled: count > 0 },
+    query: { enabled: count > 0, staleTime: Infinity, refetchOnWindowFocus: false },
   })
 
-  // ── Stable refs so callbacks never become stale ─────────────────────────
-  const refetchBatchRef = useRef(refetchBatch)
-  refetchBatchRef.current = refetchBatch
-  const refetchSupplyRef = useRef(refetchSupply)
-  refetchSupplyRef.current = refetchSupply
-  const removeByTokenIdRef = useRef(removeByTokenId)
-  removeByTokenIdRef.current = removeByTokenId
-  const syncChainStateRef = useRef(syncChainState)
-  syncChainStateRef.current = syncChainState
+  // ── Initial one-time sync: push full chain state to Convex on first load ──
+  // Chain is authoritative — this overwrites any stale Convex data.
+  // hasSyncedRef ensures we only do this once per page load (not on every render).
+  const hasSyncedRef = useRef(false)
   const batchSyncChainStateRef = useRef(batchSyncChainState)
   batchSyncChainStateRef.current = batchSyncChainState
-  const publicClientRef = useRef(publicClient)
-  publicClientRef.current = publicClient
-  const countRef = useRef(count)
-  countRef.current = count
 
-  // ── Initial sync: on every chain batch read, push full state to Convex ──
-  // Chain is authoritative — this overwrites any stale Convex data.
   useEffect(() => {
+    if (hasSyncedRef.current) return
     if (!batchResults || batchResults.length === 0) return
 
     const tilesToSync: {
@@ -179,128 +165,15 @@ export function useTerras() {
     }
 
     if (tilesToSync.length > 0) {
+      hasSyncedRef.current = true
       batchSyncChainStateRef.current({ tiles: tilesToSync })
     }
   }, [batchResults, count])
 
-  // ── Targeted verification: read a single tile from chain → sync Convex ──
-  // Called after every event to guarantee Convex matches on-chain truth.
-  const verifyAndSyncTile = useCallback(async (tokenId: number) => {
-    const client = publicClientRef.current
-    if (!client) return
-
-    try {
-      const [terra, owner] = await Promise.all([
-        client.readContract({
-          address: PACHA_TERRA_ADDRESS,
-          abi: PACHA_TERRA_ABI,
-          functionName: "getTerra",
-          args: [BigInt(tokenId)],
-        }),
-        client.readContract({
-          address: PACHA_TERRA_ADDRESS,
-          abi: PACHA_TERRA_ABI,
-          functionName: "ownerOf",
-          args: [BigInt(tokenId)],
-        }),
-      ])
-
-      const t = terra as unknown as { listed: boolean; price: bigint }
-      await syncChainStateRef.current({
-        tokenId,
-        owner: (owner as string).toLowerCase(),
-        listed: t.listed,
-        priceWei: t.price.toString(),
-      })
-    } catch (err) {
-      console.error("verifyAndSyncTile failed for tokenId", tokenId, err)
-    }
-  }, [])
-
-  // ── Contract event handlers ─────────────────────────────────────────────
-  // Each handler: clear pending tx → verify from chain (blockchain > Convex)
-  //               → also trigger wagmi batch refetch for coordinate data.
-
-  const onTerraBought = useCallback(
-    (logs: { args: { tokenId?: bigint } }[]) => {
-      for (const log of logs) {
-        if (log.args.tokenId == null) continue
-        const tokenId = Number(log.args.tokenId)
-        removeByTokenIdRef.current({ tokenId })
-        verifyAndSyncTile(tokenId)
-      }
-      refetchBatchRef.current()
-    },
-    [verifyAndSyncTile],
-  )
-
-  const onListed = useCallback(
-    (logs: { args: { tokenId?: bigint } }[]) => {
-      for (const log of logs) {
-        if (log.args.tokenId == null) continue
-        const tokenId = Number(log.args.tokenId)
-        removeByTokenIdRef.current({ tokenId })
-        verifyAndSyncTile(tokenId)
-      }
-      refetchBatchRef.current()
-    },
-    [verifyAndSyncTile],
-  )
-
-  const onDelisted = useCallback(
-    (logs: { args: { tokenId?: bigint } }[]) => {
-      for (const log of logs) {
-        if (log.args.tokenId == null) continue
-        const tokenId = Number(log.args.tokenId)
-        removeByTokenIdRef.current({ tokenId })
-        verifyAndSyncTile(tokenId)
-      }
-      refetchBatchRef.current()
-    },
-    [verifyAndSyncTile],
-  )
-
-  const onTerraCreated = useCallback(() => {
-    refetchSupplyRef.current()
-  }, [])
-
-  useWatchContractEvent({
-    address: PACHA_TERRA_ADDRESS,
-    abi: PACHA_TERRA_ABI,
-    eventName: "TerraBought",
-    onLogs: onTerraBought,
-    enabled,
-  })
-
-  useWatchContractEvent({
-    address: PACHA_TERRA_ADDRESS,
-    abi: PACHA_TERRA_ABI,
-    eventName: "Listed",
-    onLogs: onListed,
-    enabled,
-  })
-
-  useWatchContractEvent({
-    address: PACHA_TERRA_ADDRESS,
-    abi: PACHA_TERRA_ABI,
-    eventName: "Delisted",
-    onLogs: onDelisted,
-    enabled,
-  })
-
-  useWatchContractEvent({
-    address: PACHA_TERRA_ADDRESS,
-    abi: PACHA_TERRA_ABI,
-    eventName: "TerraCreated",
-    onLogs: onTerraCreated,
-    enabled,
-  })
-
   // ── Build tile list ─────────────────────────────────────────────────────
   // Coordinates: always from chain (immutable after minting).
-  // Owner / listed / price: Convex first (reactive, event-driven cache),
+  // Owner / listed / price: Convex first (reactive live cache),
   //   falling back to chain batch data when Convex has no record yet.
-  // Blockchain is authoritative — Convex is kept in sync via the syncs above.
   const tiles: Tile[] = useMemo(() => {
     if (!batchResults || batchResults.length === 0) return []
 
@@ -391,6 +264,7 @@ export function useTerras() {
   const isLoading = isLoadingSupply || isLoadingBatch
 
   async function refetch() {
+    hasSyncedRef.current = false
     await refetchSupply()
     await refetchBatch()
   }

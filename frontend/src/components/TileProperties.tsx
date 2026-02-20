@@ -1,5 +1,11 @@
-import { useState } from "react"
-import { useAccount, useSimulateContract, useWriteContract } from "wagmi"
+import { useState, useEffect, useRef } from "react"
+import {
+  useAccount,
+  usePublicClient,
+  useSimulateContract,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi"
 import { useMutation } from "convex/react"
 import { parseEther, formatEther } from "viem"
 import type { Tile } from "@/data/tiles"
@@ -165,11 +171,77 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
   )
 }
 
+// ── Post-confirmation sync ──
+// After the user's tx confirms, reads updated tile state from chain and
+// pushes it to Convex (so all clients see the change reactively).
+
+function useConfirmAndSync(
+  txHash: `0x${string}` | undefined,
+  tokenId: number | null | undefined,
+) {
+  const publicClient = usePublicClient()
+  const syncChainState = useMutation(api.terras.syncChainState)
+  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
+
+  const { isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+    query: { enabled: !!txHash },
+  })
+
+  // Track which hash we've already synced to avoid double-firing
+  const syncedHashRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!isSuccess || !txHash || tokenId == null) return
+    if (syncedHashRef.current === txHash) return
+    syncedHashRef.current = txHash
+
+    async function sync() {
+      if (!publicClient) return
+      try {
+        const [terra, owner] = await Promise.all([
+          publicClient.readContract({
+            address: PACHA_TERRA_ADDRESS,
+            abi: PACHA_TERRA_ABI,
+            functionName: "getTerra",
+            args: [BigInt(tokenId!)],
+          }),
+          publicClient.readContract({
+            address: PACHA_TERRA_ADDRESS,
+            abi: PACHA_TERRA_ABI,
+            functionName: "ownerOf",
+            args: [BigInt(tokenId!)],
+          }),
+        ])
+        const t = terra as unknown as { listed: boolean; price: bigint }
+        await syncChainState({
+          tokenId: tokenId!,
+          owner: (owner as string).toLowerCase(),
+          listed: t.listed,
+          priceWei: t.price.toString(),
+        })
+      } catch (err) {
+        console.error("useConfirmAndSync failed for tokenId", tokenId, err)
+      } finally {
+        // Always clear the pending tx, even if the chain read failed
+        try {
+          await removeByTokenId({ tokenId: tokenId! })
+        } catch {}
+      }
+    }
+
+    sync()
+  }, [isSuccess, txHash, tokenId, publicClient, syncChainState, removeByTokenId])
+}
+
 // ── Buy action ──
 
 function BuyAction({ tile }: { tile: Tile }) {
   const { address } = useAccount()
   const addPending = useMutation(api.pendingTxs.add)
+  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
+
+  useConfirmAndSync(pendingHash, tile.tokenId)
 
   const canSimulate = tile.tokenId != null && tile.price != null && tile.price > 0n
 
@@ -189,6 +261,7 @@ function BuyAction({ tile }: { tile: Tile }) {
 
     try {
       const txHash = await writeContractAsync(simulation.request)
+      setPendingHash(txHash)
       await addPending({
         tokenId: tile.tokenId,
         txHash,
@@ -269,7 +342,10 @@ function ListAction({
   const { address } = useAccount()
   const addPending = useMutation(api.pendingTxs.add)
   const [priceEth, setPriceEth] = useState("")
+  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
   const { writeContractAsync, isPending } = useWriteContract()
+
+  useConfirmAndSync(pendingHash, tile.tokenId)
 
   async function handleList(e: React.FormEvent) {
     e.preventDefault()
@@ -295,6 +371,7 @@ function ListAction({
         functionName: "list",
         args: [BigInt(tile.tokenId), priceWei],
       })
+      setPendingHash(txHash)
       await addPending({ tokenId: tile.tokenId, txHash, action: "list", userAddress: address })
       toast.success("Listing submitted — waiting for confirmation")
       setPriceEth("")
@@ -342,7 +419,10 @@ function DelistAction({
 }) {
   const { address } = useAccount()
   const addPending = useMutation(api.pendingTxs.add)
+  const [pendingHash, setPendingHash] = useState<`0x${string}` | undefined>()
   const { writeContractAsync, isPending } = useWriteContract()
+
+  useConfirmAndSync(pendingHash, tile.tokenId)
 
   async function handleDelist() {
     if (tile.tokenId == null || !address) return
@@ -354,6 +434,7 @@ function DelistAction({
         functionName: "delist",
         args: [BigInt(tile.tokenId)],
       })
+      setPendingHash(txHash)
       await addPending({ tokenId: tile.tokenId, txHash, action: "delist", userAddress: address })
       toast.success("Delist submitted — waiting for confirmation")
       onAction?.()
