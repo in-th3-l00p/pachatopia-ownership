@@ -85,7 +85,7 @@ function MapPage() {
       </aside>
 
       {/* Mobile drawer */}
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} modal={false}>
         <DrawerContent className="lg:hidden max-h-[70vh]">
           <DrawerHeader>
             <DrawerTitle className="font-heading">

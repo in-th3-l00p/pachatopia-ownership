@@ -39,6 +39,13 @@ export function TileMap({ tiles, selectedTile, onSelectTile }: TileMapProps) {
     <MapContainer
       center={MAP_CENTER}
       zoom={16}
+      minZoom={14}
+      maxZoom={19}
+      maxBounds={[
+        [MAP_CENTER[0] - 0.02, MAP_CENTER[1] - 0.02],
+        [MAP_CENTER[0] + 0.02, MAP_CENTER[1] + 0.02],
+      ]}
+      maxBoundsViscosity={1.0}
       className="h-full w-full"
       zoomControl={false}
       attributionControl={false}
