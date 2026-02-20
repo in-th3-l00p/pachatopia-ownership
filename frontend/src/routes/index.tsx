@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 function MapPage() {
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const { tiles, isLoading } = useTerras()
+  const { tiles, isLoading, refetch } = useTerras()
 
   function handleSelectTile(tile: Tile) {
     setSelectedTile(tile)
@@ -71,7 +71,7 @@ function MapPage() {
         <ScrollArea className="flex-1">
           {selectedTile ? (
             <div className="p-4">
-              <TileProperties tile={selectedTile} />
+              <TileProperties tile={selectedTile} onAction={refetch} />
             </div>
           ) : (
             <div className="p-4">
@@ -95,7 +95,7 @@ function MapPage() {
           <ScrollArea className="flex-1 overflow-auto">
             <div className="px-4 pb-6">
               {selectedTile ? (
-                <TileProperties tile={selectedTile} />
+                <TileProperties tile={selectedTile} onAction={refetch} />
               ) : (
                 <EmptyState />
               )}

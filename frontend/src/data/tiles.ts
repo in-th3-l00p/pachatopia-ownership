@@ -13,6 +13,7 @@ export interface Tile {
   crops: string[]
   owner?: string
   tokenId?: number
+  price?: bigint
 }
 
 export const MAP_CENTER: LatLngTuple = [6.708, -75.496]

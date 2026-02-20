@@ -135,6 +135,7 @@ export function useTerras() {
         crops: cropSets[i % cropSets.length],
         owner,
         tokenId: i,
+        price: terra.price,
       });
     }
 
