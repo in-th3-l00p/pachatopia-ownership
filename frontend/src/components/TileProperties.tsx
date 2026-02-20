@@ -2,7 +2,6 @@ import { useState } from "react"
 import {
   useAccount,
   usePublicClient,
-  useSimulateContract,
   useWriteContract,
 } from "wagmi"
 import { useMutation } from "convex/react"
@@ -220,25 +219,21 @@ function BuyAction({ tile }: { tile: Tile }) {
   const addPending = useMutation(api.pendingTxs.add)
   const syncChainState = useMutation(api.terras.syncChainState)
   const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
-
-  const canSimulate = tile.tokenId != null && tile.price != null && tile.price > 0n
-
-  const { data: simulation, error: simulateError } = useSimulateContract({
-    address: PACHA_TERRA_ADDRESS,
-    abi: PACHA_TERRA_ABI,
-    functionName: "buy",
-    args: [BigInt(tile.tokenId ?? 0)],
-    value: tile.price ?? 0n,
-    query: { enabled: canSimulate },
-  })
-
   const { writeContractAsync, isPending } = useWriteContract()
 
+  const canBuy = tile.tokenId != null && tile.price != null && tile.price > 0n
+
   async function handleBuy() {
-    if (!simulation || tile.tokenId == null || !address || !publicClient) return
+    if (!canBuy || tile.tokenId == null || !address || !publicClient) return
 
     try {
-      const txHash = await writeContractAsync(simulation.request)
+      const txHash = await writeContractAsync({
+        address: PACHA_TERRA_ADDRESS,
+        abi: PACHA_TERRA_ABI,
+        functionName: "buy",
+        args: [BigInt(tile.tokenId)],
+        value: tile.price!,
+      })
       await addPending({
         tokenId: tile.tokenId,
         txHash,
@@ -246,7 +241,6 @@ function BuyAction({ tile }: { tile: Tile }) {
         userAddress: address,
       })
       toast.success("Purchase submitted — waiting for confirmation")
-      // Fire-and-forget: waits for receipt internally, no React polling
       confirmAndSync(publicClient, syncChainState, removeByTokenId, tile.tokenId, txHash)
     } catch (err) {
       toast.error(
@@ -255,24 +249,17 @@ function BuyAction({ tile }: { tile: Tile }) {
     }
   }
 
-  const revertReason = simulateError?.message?.match(/reverted with reason string '([^']+)'/)?.[1]
-
   return (
     <div className="flex flex-col gap-2">
       <Button
         className="w-full"
         onClick={handleBuy}
-        disabled={isPending || !simulation}
+        disabled={isPending || !canBuy}
       >
         {isPending
           ? "Submitting..."
           : `Buy for ${tile.price != null ? formatEther(tile.price) : "?"} ETH`}
       </Button>
-      {simulateError && (
-        <p className="text-xs text-destructive text-center">
-          {revertReason ?? "Transaction would fail — tile may no longer be available"}
-        </p>
-      )}
     </div>
   )
 }
