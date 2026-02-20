@@ -6,6 +6,10 @@ export default defineSchema({
     tokenId: v.number(),
     terrain: v.string(),
     crops: v.array(v.string()),
+    // Mutable on-chain state — synced from blockchain events and verified reads
+    owner: v.optional(v.string()),    // lowercase wallet address
+    listed: v.optional(v.boolean()),
+    priceWei: v.optional(v.string()), // bigint stored as decimal string
   }).index("by_tokenId", ["tokenId"]),
 
   pendingTxs: defineTable({
