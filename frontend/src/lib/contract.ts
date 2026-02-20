@@ -95,4 +95,40 @@ export const PACHA_TERRA_ABI = [
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },
+  {
+    type: "event",
+    name: "TerraCreated",
+    inputs: [
+      { name: "tokenId", type: "uint256", indexed: true },
+      { name: "lat", type: "int32", indexed: false },
+      { name: "lng", type: "int32", indexed: false },
+      { name: "widthCm", type: "uint32", indexed: false },
+      { name: "heightCm", type: "uint32", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Listed",
+    inputs: [
+      { name: "tokenId", type: "uint256", indexed: true },
+      { name: "price", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Delisted",
+    inputs: [
+      { name: "tokenId", type: "uint256", indexed: true },
+    ],
+  },
+  {
+    type: "event",
+    name: "TerraBought",
+    inputs: [
+      { name: "tokenId", type: "uint256", indexed: true },
+      { name: "from", type: "address", indexed: true },
+      { name: "to", type: "address", indexed: true },
+      { name: "price", type: "uint256", indexed: false },
+    ],
+  },
 ] as const

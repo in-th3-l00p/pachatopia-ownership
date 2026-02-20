@@ -7,4 +7,14 @@ export default defineSchema({
     terrain: v.string(),
     crops: v.array(v.string()),
   }).index("by_tokenId", ["tokenId"]),
+
+  pendingTxs: defineTable({
+    tokenId: v.number(),
+    txHash: v.string(),
+    action: v.union(v.literal("buy"), v.literal("list"), v.literal("delist")),
+    userAddress: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_tokenId", ["tokenId"])
+    .index("by_txHash", ["txHash"]),
 })

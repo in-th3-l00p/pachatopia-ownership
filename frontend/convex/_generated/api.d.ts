@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as pendingTxs from "../pendingTxs.js";
 import type * as terras from "../terras.js";
 
 import type {
@@ -17,6 +18,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  pendingTxs: typeof pendingTxs;
   terras: typeof terras;
 }>;
 

@@ -16,6 +16,14 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   available: "default",
   owned: "secondary",
   reserved: "outline",
+  pending_buy: "outline",
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  available: "available",
+  owned: "owned",
+  reserved: "reserved",
+  pending_buy: "pending purchase",
 }
 
 const TERRAIN_OPTIONS = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
@@ -51,7 +59,7 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
           <h2 className="font-heading text-xl font-semibold">{tile.name}</h2>
           <p className="text-muted-foreground text-sm font-mono">{tile.id}</p>
         </div>
-        <Badge variant={STATUS_VARIANT[tile.status]}>{tile.status}</Badge>
+        <Badge variant={STATUS_VARIANT[tile.status]}>{STATUS_LABEL[tile.status] ?? tile.status}</Badge>
       </div>
 
       <Separator />
@@ -119,7 +127,11 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
       <Separator />
 
       {tile.status === "available" && !isOwner && !!address && (
-        <BuyAction tile={tile} onAction={onAction} />
+        <BuyAction tile={tile} />
+      )}
+
+      {tile.status === "pending_buy" && !isOwner && (
+        <PendingBuyAction tile={tile} />
       )}
 
       {isOwner && tile.status === "owned" && (
@@ -132,7 +144,7 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
 
       {isOwner && <EditMetadataAction tile={tile} />}
 
-      {!address && tile.status === "available" && (
+      {!address && (tile.status === "available" || tile.status === "pending_buy") && (
         <p className="text-sm text-muted-foreground text-center">
           Connect your wallet to purchase this parcel
         </p>
@@ -143,13 +155,10 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
 
 // ── Buy action ──
 
-function BuyAction({
-  tile,
-  onAction,
-}: {
-  tile: Tile
-  onAction?: () => void
-}) {
+function BuyAction({ tile }: { tile: Tile }) {
+  const { address } = useAccount()
+  const addPending = useMutation(api.pendingTxs.add)
+
   const canSimulate = tile.tokenId != null && tile.price != null && tile.price > 0n
 
   const { data: simulation, error: simulateError } = useSimulateContract({
@@ -161,17 +170,20 @@ function BuyAction({
     query: { enabled: canSimulate },
   })
 
-  console.log(tile.tokenId, tile.price, simulateError);
-
   const { writeContractAsync, isPending } = useWriteContract()
 
   async function handleBuy() {
-    if (!simulation) return
+    if (!simulation || tile.tokenId == null || !address) return
 
     try {
-      await writeContractAsync(simulation.request)
-      toast.success("Parcel purchased successfully!")
-      onAction?.()
+      const txHash = await writeContractAsync(simulation.request)
+      await addPending({
+        tokenId: tile.tokenId,
+        txHash,
+        action: "buy",
+        userAddress: address,
+      })
+      toast.success("Purchase submitted — waiting for confirmation")
     } catch (err) {
       toast.error(
         `Purchase failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -189,12 +201,29 @@ function BuyAction({
         disabled={isPending || !simulation}
       >
         {isPending
-          ? "Purchasing..."
+          ? "Submitting..."
           : `Buy for ${tile.price != null ? formatEther(tile.price) : "?"} ETH`}
       </Button>
       {simulateError && (
         <p className="text-xs text-destructive text-center">
           {revertReason ?? "Transaction would fail — tile may no longer be available"}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Pending buy action ──
+
+function PendingBuyAction({ tile }: { tile: Tile }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Button className="w-full" disabled>
+        Purchase pending...
+      </Button>
+      {tile.price != null && tile.price > 0n && (
+        <p className="text-xs text-muted-foreground text-center">
+          {formatEther(tile.price)} ETH — transaction confirming on-chain
         </p>
       )}
     </div>

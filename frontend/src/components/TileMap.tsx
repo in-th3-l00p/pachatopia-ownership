@@ -8,6 +8,7 @@ const STATUS_COLORS: Record<string, { fill: string; stroke: string }> = {
   available: { fill: "#48995c", stroke: "#3a7a4a" },
   owned: { fill: "#ffb13b", stroke: "#e09520" },
   reserved: { fill: "#885138", stroke: "#6b3f2b" },
+  pending_buy: { fill: "#6b7cf6", stroke: "#4f5cd4" },
 }
 
 function FitToTiles({ tiles }: { tiles: Tile[] }) {

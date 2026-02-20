@@ -1,6 +1,6 @@
-import { useMemo } from "react"
-import { useAccount, useReadContract, useReadContracts } from "wagmi"
-import { useQuery } from "convex/react"
+import { useCallback, useMemo, useRef } from "react"
+import { useAccount, useReadContract, useReadContracts, useWatchContractEvent } from "wagmi"
+import { useQuery, useMutation } from "convex/react"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
 import { activeChain } from "@/lib/wagmi"
 import { cmToLatDeg, cmToLngDeg } from "@/lib/geo"
@@ -41,6 +41,9 @@ export function useTerras() {
 
   // Fetch metadata from Convex
   const convexTerras = useQuery(api.terras.list)
+  // Fetch pending transactions from Convex (reactive)
+  const pendingTxs = useQuery(api.pendingTxs.list)
+  const removeByTokenId = useMutation(api.pendingTxs.removeByTokenId)
 
   const metaByTokenId = useMemo(() => {
     const map = new Map<number, { terrain: string; crops: string[] }>()
@@ -51,6 +54,17 @@ export function useTerras() {
     }
     return map
   }, [convexTerras])
+
+  // Set of tokenIds that have a pending buy tx
+  const pendingBuyTokenIds = useMemo(() => {
+    const set = new Set<number>()
+    if (pendingTxs) {
+      for (const tx of pendingTxs) {
+        if (tx.action === "buy") set.add(tx.tokenId)
+      }
+    }
+    return set
+  }, [pendingTxs])
 
   const {
     data: totalSupply,
@@ -93,6 +107,67 @@ export function useTerras() {
   } = useReadContracts({
     contracts: batchCalls,
     query: { enabled: count > 0 },
+  })
+
+  // Keep stable refs to avoid re-registering event watchers on every render
+  const refetchBatchRef = useRef(refetchBatch)
+  refetchBatchRef.current = refetchBatch
+  const refetchSupplyRef = useRef(refetchSupply)
+  refetchSupplyRef.current = refetchSupply
+  const removeByTokenIdRef = useRef(removeByTokenId)
+  removeByTokenIdRef.current = removeByTokenId
+
+  const onTerraBought = useCallback((logs: { args: { tokenId?: bigint } }[]) => {
+    for (const log of logs) {
+      if (log.args.tokenId != null) {
+        removeByTokenIdRef.current({ tokenId: Number(log.args.tokenId) })
+      }
+    }
+    refetchBatchRef.current()
+  }, [])
+
+  const onListed = useCallback(() => {
+    refetchBatchRef.current()
+  }, [])
+
+  const onDelisted = useCallback(() => {
+    refetchBatchRef.current()
+  }, [])
+
+  const onTerraCreated = useCallback(() => {
+    refetchSupplyRef.current()
+  }, [])
+
+  useWatchContractEvent({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    eventName: "TerraBought",
+    onLogs: onTerraBought,
+    enabled,
+  })
+
+  useWatchContractEvent({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    eventName: "Listed",
+    onLogs: onListed,
+    enabled,
+  })
+
+  useWatchContractEvent({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    eventName: "Delisted",
+    onLogs: onDelisted,
+    enabled,
+  })
+
+  useWatchContractEvent({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    eventName: "TerraCreated",
+    onLogs: onTerraCreated,
+    enabled,
   })
 
   const tiles: Tile[] = useMemo(() => {
@@ -139,8 +214,14 @@ export function useTerras() {
       const row = Math.floor(i / 6);
       const col = i % 6;
 
-      // Use Convex metadata if available, otherwise defaults
       const meta = metaByTokenId.get(i)
+
+      const baseStatus = getStatus(listed, owner, connectedAddress)
+      // Override with pending_buy if there's an in-flight purchase for this tile
+      const status: TileStatus =
+        baseStatus === "available" && pendingBuyTokenIds.has(i)
+          ? "pending_buy"
+          : baseStatus
 
       result.push({
         id: `terra-${i}`,
@@ -148,7 +229,7 @@ export function useTerras() {
         coordinates,
         center: [latDeg + heightDeg / 2, lngDeg + widthDeg / 2],
         area: (widthCm * heightCm) / 10_000,
-        status: getStatus(listed, owner, connectedAddress),
+        status,
         terrain: meta?.terrain ?? DEFAULT_TERRAINS[i % DEFAULT_TERRAINS.length],
         crops: meta?.crops ?? DEFAULT_CROP_SETS[i % DEFAULT_CROP_SETS.length],
         owner,
@@ -158,7 +239,7 @@ export function useTerras() {
     }
 
     return result
-  }, [batchResults, count, connectedAddress, metaByTokenId]);
+  }, [batchResults, count, connectedAddress, metaByTokenId, pendingBuyTokenIds]);
 
   const isLoading = isLoadingSupply || isLoadingBatch;
 
