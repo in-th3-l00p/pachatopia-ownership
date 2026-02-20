@@ -8,31 +8,36 @@ export const list = query({
   },
 })
 
-export const getByStatus = query({
-  args: { status: v.string() },
+export const getByTokenId = query({
+  args: { tokenId: v.number() },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("terras")
-      .withIndex("by_status", (q) => q.eq("status", args.status as "available" | "owned" | "reserved"))
-      .collect()
+      .withIndex("by_tokenId", (q) => q.eq("tokenId", args.tokenId))
+      .unique()
   },
 })
 
-export const mint = mutation({
+export const upsert = mutation({
   args: {
     tokenId: v.number(),
-    lat: v.number(),
-    lng: v.number(),
-    widthCm: v.number(),
-    heightCm: v.number(),
     terrain: v.string(),
     crops: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    // TODO: verify wallet signature to ensure caller has ADMIN_ROLE
-    return await ctx.db.insert("terras", {
-      ...args,
-      status: "available",
-    })
+    const existing = await ctx.db
+      .query("terras")
+      .withIndex("by_tokenId", (q) => q.eq("tokenId", args.tokenId))
+      .unique()
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        terrain: args.terrain,
+        crops: args.crops,
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert("terras", args)
   },
 })

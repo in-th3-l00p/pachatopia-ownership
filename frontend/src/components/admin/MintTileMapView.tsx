@@ -1,12 +1,27 @@
 import { useState } from "react"
-import { useWriteContract } from "wagmi"
+import { useWriteContract, useReadContract } from "wagmi"
+import { useMutation } from "convex/react"
 import { MintTileMapPicker } from "./MintTileMapPicker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
+import { api } from "../../../convex/_generated/api"
 import type { Tile } from "@/data/tiles"
+
+const TERRAIN_OPTIONS = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
+const CROP_OPTIONS = [
+  "Arabica Coffee",
+  "Cacao",
+  "Plantain",
+  "Avocado",
+  "Sugarcane",
+  "Yuca",
+  "Fruit Trees",
+  "Herbs",
+  "Corn",
+]
 
 interface MintTileMapViewProps {
   tiles: Tile[]
@@ -23,8 +38,17 @@ export function MintTileMapView({
   const [lng, setLng] = useState("")
   const [widthCm, setWidthCm] = useState("3000")
   const [heightCm, setHeightCm] = useState("3000")
+  const [terrain, setTerrain] = useState(TERRAIN_OPTIONS[0])
+  const [selectedCrops, setSelectedCrops] = useState<string[]>([])
 
   const { writeContractAsync, isPending } = useWriteContract()
+  const upsertMeta = useMutation(api.terras.upsert)
+
+  const { data: totalSupply } = useReadContract({
+    address: PACHA_TERRA_ADDRESS,
+    abi: PACHA_TERRA_ABI,
+    functionName: "totalSupply",
+  })
 
   const parsedLat = lat !== "" ? parseFloat(lat) : null
   const parsedLng = lng !== "" ? parseFloat(lng) : null
@@ -48,6 +72,12 @@ export function MintTileMapView({
     setHeightCm(String(newHeightCm))
   }
 
+  function toggleCrop(crop: string) {
+    setSelectedCrops((prev) =>
+      prev.includes(crop) ? prev.filter((c) => c !== crop) : [...prev, crop],
+    )
+  }
+
   async function handleMint() {
     if (parsedLat === null || parsedLng === null) return
 
@@ -62,6 +92,14 @@ export function MintTileMapView({
           parsedWidth,
           parsedHeight,
         ],
+      })
+
+      // Store metadata in Convex
+      const tokenId = totalSupply ? Number(totalSupply) : 0
+      await upsertMeta({
+        tokenId,
+        terrain,
+        crops: selectedCrops.length > 0 ? selectedCrops : ["None"],
       })
 
       toast.success("Tile minted successfully!")
@@ -94,7 +132,7 @@ export function MintTileMapView({
       </div>
 
       {/* Sidebar */}
-      <aside className="w-full lg:w-[360px] flex-shrink-0 border-t lg:border-t-0 lg:border-l bg-background flex flex-col">
+      <aside className="w-full lg:w-[360px] flex-shrink-0 border-t lg:border-t-0 lg:border-l bg-background flex flex-col overflow-y-auto">
         <div className="p-4 border-b flex items-center justify-between">
           <div>
             <h2 className="font-heading text-lg font-semibold">
@@ -159,6 +197,44 @@ export function MintTileMapView({
                 value={heightCm}
                 onChange={(e) => setHeightCm(e.target.value)}
               />
+            </div>
+          </div>
+
+          {/* Terrain select */}
+          <div className="grid gap-2">
+            <Label htmlFor="mint-terrain">Terrain</Label>
+            <select
+              id="mint-terrain"
+              value={terrain}
+              onChange={(e) => setTerrain(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {TERRAIN_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Crops multi-select */}
+          <div className="grid gap-2">
+            <Label>Crops</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {CROP_OPTIONS.map((crop) => (
+                <button
+                  key={crop}
+                  type="button"
+                  onClick={() => toggleCrop(crop)}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    selectedCrops.includes(crop)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-transparent text-muted-foreground border-input hover:bg-muted"
+                  }`}
+                >
+                  {crop}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { useState, useEffect } from "react"
 import { useTerras } from "@/hooks/useTerras"
+import { useIsAdmin } from "@/hooks/useIsAdmin"
 import { TileTable } from "@/components/admin/TileTable"
 import { MintTileMapView } from "@/components/admin/MintTileMapView"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,31 @@ export const Route = createFileRoute("/admin")({
 })
 
 function AdminPage() {
+  const { isAdmin, isLoading: isCheckingRole } = useIsAdmin()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isCheckingRole && !isAdmin) {
+      navigate({ to: "/" })
+    }
+  }, [isAdmin, isCheckingRole, navigate])
+
+  if (isCheckingRole) {
+    return (
+      <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+        Checking permissions...
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return null
+  }
+
+  return <AdminDashboard />
+}
+
+function AdminDashboard() {
   const [mintMode, setMintMode] = useState(false)
   const { tiles, isLoading, refetch } = useTerras()
 

@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useAccount, useWriteContract } from "wagmi"
+import { useMutation } from "convex/react"
 import { parseEther, formatEther } from "viem"
 import type { Tile } from "@/data/tiles"
 import { Badge } from "@/components/ui/badge"
@@ -9,12 +10,26 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
+import { api } from "../../convex/_generated/api"
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   available: "default",
   owned: "secondary",
   reserved: "outline",
 }
+
+const TERRAIN_OPTIONS = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
+const CROP_OPTIONS = [
+  "Arabica Coffee",
+  "Cacao",
+  "Plantain",
+  "Avocado",
+  "Sugarcane",
+  "Yuca",
+  "Fruit Trees",
+  "Herbs",
+  "Corn",
+]
 
 interface TilePropertiesProps {
   tile: Tile
@@ -114,6 +129,8 @@ export function TileProperties({ tile, onAction }: TilePropertiesProps) {
       {isOwner && tile.status === "available" && (
         <DelistAction tile={tile} onAction={onAction} />
       )}
+
+      {isOwner && <EditMetadataAction tile={tile} />}
 
       {!address && tile.status === "available" && (
         <p className="text-sm text-muted-foreground text-center">
@@ -229,9 +246,7 @@ function ListAction({
           type="number"
           step="any"
           min="0"
-          placeholder={
-            minPriceEth ? `Min: >${minPriceEth}` : "0.01"
-          }
+          placeholder={minPriceEth ? `Min: >${minPriceEth}` : "0.01"}
           value={priceEth}
           onChange={(e) => setPriceEth(e.target.value)}
         />
@@ -241,7 +256,11 @@ function ListAction({
           </p>
         )}
       </div>
-      <Button type="submit" className="w-full" disabled={isPending || !priceEth}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isPending || !priceEth}
+      >
         {isPending ? "Listing..." : "List for Sale"}
       </Button>
     </form>
@@ -291,6 +310,116 @@ function DelistAction({
       >
         {isPending ? "Removing..." : "Remove from Sale"}
       </Button>
+    </div>
+  )
+}
+
+// ── Edit metadata action (owner only) ──
+
+function EditMetadataAction({ tile }: { tile: Tile }) {
+  const [editing, setEditing] = useState(false)
+  const [terrain, setTerrain] = useState(tile.terrain)
+  const [selectedCrops, setSelectedCrops] = useState<string[]>(tile.crops)
+  const [saving, setSaving] = useState(false)
+  const upsertMeta = useMutation(api.terras.upsert)
+
+  function toggleCrop(crop: string) {
+    setSelectedCrops((prev) =>
+      prev.includes(crop) ? prev.filter((c) => c !== crop) : [...prev, crop],
+    )
+  }
+
+  async function handleSave() {
+    if (tile.tokenId == null) return
+    setSaving(true)
+    try {
+      await upsertMeta({
+        tokenId: tile.tokenId,
+        terrain,
+        crops: selectedCrops.length > 0 ? selectedCrops : ["None"],
+      })
+      toast.success("Metadata updated!")
+      setEditing(false)
+    } catch (err) {
+      toast.error(
+        `Update failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => setEditing(true)}
+      >
+        Edit Metadata
+      </Button>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border p-3">
+      <p className="text-sm font-medium">Edit Metadata</p>
+
+      <div className="grid gap-2">
+        <Label htmlFor="edit-terrain">Terrain</Label>
+        <select
+          id="edit-terrain"
+          value={terrain}
+          onChange={(e) => setTerrain(e.target.value)}
+          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {TERRAIN_OPTIONS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid gap-2">
+        <Label>Crops</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {CROP_OPTIONS.map((crop) => (
+            <button
+              key={crop}
+              type="button"
+              onClick={() => toggleCrop(crop)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                selectedCrops.includes(crop)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-transparent text-muted-foreground border-input hover:bg-muted"
+              }`}
+            >
+              {crop}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => setEditing(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Saving..." : "Save"}
+        </Button>
+      </div>
     </div>
   )
 }

@@ -1,15 +1,17 @@
 import { useMemo } from "react"
 import { useAccount, useReadContract, useReadContracts } from "wagmi"
+import { useQuery } from "convex/react"
 import { PACHA_TERRA_ABI, PACHA_TERRA_ADDRESS } from "@/lib/contract"
 import { activeChain } from "@/lib/wagmi"
 import { cmToLatDeg, cmToLngDeg } from "@/lib/geo"
+import { api } from "../../convex/_generated/api"
 import type { Tile, TileStatus } from "@/data/tiles"
 import type { LatLngTuple } from "leaflet"
 
 const DISPLAY_SIZE_DEG = 0.003
 
-const terrains = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
-const cropSets = [
+const DEFAULT_TERRAINS = ["Forest", "Hillside", "Valley", "Riverbank", "Plateau"]
+const DEFAULT_CROP_SETS = [
   ["Arabica Coffee", "Plantain"],
   ["Cacao", "Avocado"],
   ["Sugarcane", "Yuca"],
@@ -37,6 +39,19 @@ export function useTerras() {
   const enabled =
     !!PACHA_TERRA_ADDRESS && PACHA_TERRA_ADDRESS !== ("0x" as `0x${string}`);
 
+  // Fetch metadata from Convex
+  const convexTerras = useQuery(api.terras.list)
+
+  const metaByTokenId = useMemo(() => {
+    const map = new Map<number, { terrain: string; crops: string[] }>()
+    if (convexTerras) {
+      for (const t of convexTerras) {
+        map.set(t.tokenId, { terrain: t.terrain, crops: t.crops })
+      }
+    }
+    return map
+  }, [convexTerras])
+
   const {
     data: totalSupply,
     isLoading: isLoadingSupply,
@@ -51,7 +66,7 @@ export function useTerras() {
   const count = totalSupply ? Number(totalSupply) : 0
 
   const batchCalls = useMemo(() => {
-    if (count === 0) 
+    if (count === 0)
       return [];
     return Array.from({ length: count }, (_, i) => [
       {
@@ -81,7 +96,7 @@ export function useTerras() {
   })
 
   const tiles: Tile[] = useMemo(() => {
-    if (!batchResults || batchResults.length === 0) 
+    if (!batchResults || batchResults.length === 0)
       return [];
 
     const result: Tile[] = []
@@ -124,6 +139,9 @@ export function useTerras() {
       const row = Math.floor(i / 6);
       const col = i % 6;
 
+      // Use Convex metadata if available, otherwise defaults
+      const meta = metaByTokenId.get(i)
+
       result.push({
         id: `terra-${i}`,
         name: `Parcel ${String.fromCharCode(65 + row)}${col + 1}`,
@@ -131,8 +149,8 @@ export function useTerras() {
         center: [latDeg + heightDeg / 2, lngDeg + widthDeg / 2],
         area: (widthCm * heightCm) / 10_000,
         status: getStatus(listed, owner, connectedAddress),
-        terrain: terrains[i % terrains.length],
-        crops: cropSets[i % cropSets.length],
+        terrain: meta?.terrain ?? DEFAULT_TERRAINS[i % DEFAULT_TERRAINS.length],
+        crops: meta?.crops ?? DEFAULT_CROP_SETS[i % DEFAULT_CROP_SETS.length],
         owner,
         tokenId: i,
         price: terra.price,
@@ -140,7 +158,7 @@ export function useTerras() {
     }
 
     return result
-  }, [batchResults, count, connectedAddress]);
+  }, [batchResults, count, connectedAddress, metaByTokenId]);
 
   const isLoading = isLoadingSupply || isLoadingBatch;
 

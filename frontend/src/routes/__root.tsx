@@ -6,6 +6,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react"
 import { wagmiConfig } from "@/lib/wagmi"
 import { Toaster } from "@/components/ui/sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { useIsAdmin } from "@/hooks/useIsAdmin"
 import "@rainbow-me/rainbowkit/styles.css"
 
 const queryClient = new QueryClient()
@@ -24,26 +25,7 @@ function RootLayout() {
         <RainbowKitProvider>
           <ConvexProvider client={convex}>
             <div className="flex flex-col h-svh">
-              <header className="flex items-center justify-between px-4 py-2 border-b bg-background/95 backdrop-blur z-[1001]">
-                <nav className="flex items-center gap-4">
-                  <Link
-                    to="/"
-                    className="font-heading text-lg font-bold tracking-tight"
-                  >
-                    Pachatopia
-                  </Link>
-                  <Link
-                    to="/admin"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors [&.active]:text-foreground [&.active]:font-medium"
-                  >
-                    Admin
-                  </Link>
-                </nav>
-                <ConnectButton
-                  accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
-                  showBalance={false}
-                />
-              </header>
+              <Header />
               <main className="flex-1 min-h-0">
                 <Outlet />
               </main>
@@ -53,5 +35,34 @@ function RootLayout() {
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
+  )
+}
+
+function Header() {
+  const { isAdmin } = useIsAdmin()
+
+  return (
+    <header className="flex items-center justify-between px-4 py-2 border-b bg-background/95 backdrop-blur z-[1001]">
+      <nav className="flex items-center gap-4">
+        <Link
+          to="/"
+          className="font-heading text-lg font-bold tracking-tight"
+        >
+          Pachatopia
+        </Link>
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors [&.active]:text-foreground [&.active]:font-medium"
+          >
+            Admin
+          </Link>
+        )}
+      </nav>
+      <ConnectButton
+        accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
+        showBalance={false}
+      />
+    </header>
   )
 }
